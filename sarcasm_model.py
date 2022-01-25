@@ -159,9 +159,9 @@ class SarcasmModel:
         res = []
         for i in range(len(prediction)):
             if (prediction[i][1] >= threshold):
-                res.append({"sarcastic": "true", "score": prediction[i][1]})
+                res.append({"sarcastic": "true", "score": prediction[i][1].item()})
             else:
-                res.append({"sarcastic": "false", "score": prediction[i][1]})
+                res.append({"sarcastic": "false", "score": prediction[i][1].item()})
         return res
 
     def predict_singular(self, input, threshold = DEFAULT_PREDICTION_THRESHOLD):
@@ -172,9 +172,9 @@ class SarcasmModel:
         prediction = self.model.predict(standardized)
 
         if (prediction[0][1] >= threshold):
-            return {"sarcastic": "true", "score": prediction[0][1]}
+            return {"sarcastic": "true", "score": prediction[0][1].item()}
         else:
-            return {"sarcastic": "false", "score": prediction[0][1]}
+            return {"sarcastic": "false", "score": prediction[0][1].item()}
     
     def predict(self, input, threshold = DEFAULT_PREDICTION_THRESHOLD):
         if isinstance(input, list):
