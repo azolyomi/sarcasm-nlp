@@ -31,7 +31,8 @@ class SarcasmModel:
 
     DEFAULT_PREDICTION_THRESHOLD = 0.6
 
-    def __init__(self):
+    def __init__(self, path_to_folder="./"):
+        self.path_to_folder = path_to_folder
         self.__instantiate_data()
         self.__cleanup_data()
         self.__gen_y_train_test()
@@ -42,8 +43,8 @@ class SarcasmModel:
 
     
     def __instantiate_data(self):
-        self.test_dataset = pd.read_json('./data/Sarcasm_Headlines_Dataset.json', lines=True)
-        self.train_dataset = pd.read_json('./data/Sarcasm_Headlines_Dataset_v2.json', lines=True)
+        self.test_dataset = pd.read_json(f'{self.path_to_folder}data/Sarcasm_Headlines_Dataset.json', lines=True)
+        self.train_dataset = pd.read_json(f'{self.path_to_folder}data/Sarcasm_Headlines_Dataset_v2.json', lines=True)
         self.train_dataset = self.train_dataset.drop('article_link', axis=1)
     def __cleanup_data(self):
         self.test_dataset["headline"].apply(self.remove_contractions)
@@ -70,7 +71,7 @@ class SarcasmModel:
         self.vocab_size = len(self.t.word_index) + 1
 
     def __generate_embeddings(self):
-        path_to_glove_file = "./glove/glove.6B.100d.txt"
+        path_to_glove_file = f'{self.path_to_folder}glove/glove.6B.100d.txt'
         self.embeddings_index = {}
         with open(path_to_glove_file) as f:
             for line in f:
