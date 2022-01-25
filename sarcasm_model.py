@@ -31,20 +31,28 @@ class SarcasmModel:
 
     DEFAULT_PREDICTION_THRESHOLD = 0.6
 
-    def __init__(self, path_to_folder="./"):
-        self.path_to_folder = path_to_folder
+    def __init__(self, path_to_build_folder="./", path_to_saved_model=None, train=False, epochs=30, save=True):
+        self.path_to_build_folder = path_to_build_folder
         self.__instantiate_data()
         self.__cleanup_data()
         self.__gen_y_train_test()
         self.__tokenize_data()
-        self.__generate_embeddings()
-        self.__prep_embeddings()
-        self.__compile_model()
+
+        if (path_to_saved_model is not None):
+            self.model = tf.keras.models.load_model(path_to_saved_model)
+        else:
+            self.__generate_embeddings()
+            self.__prep_embeddings()
+            self.__compile_model()
+            if (train):
+                self.train_model(epochs)
+                if (save):
+                    self.__save_model(f'{path_to_build_folder}saved_model/fake_news_v1')
 
     
     def __instantiate_data(self):
-        self.test_dataset = pd.read_json(f'{self.path_to_folder}data/Sarcasm_Headlines_Dataset.json', lines=True)
-        self.train_dataset = pd.read_json(f'{self.path_to_folder}data/Sarcasm_Headlines_Dataset_v2.json', lines=True)
+        self.test_dataset = pd.read_json(f'{self.path_to_build_folder}data/Sarcasm_Headlines_Dataset.json', lines=True)
+        self.train_dataset = pd.read_json(f'{self.path_to_build_folder}data/Sarcasm_Headlines_Dataset_v2.json', lines=True)
         self.train_dataset = self.train_dataset.drop('article_link', axis=1)
     def __cleanup_data(self):
         self.test_dataset["headline"].apply(self.remove_contractions)
@@ -71,7 +79,7 @@ class SarcasmModel:
         self.vocab_size = len(self.t.word_index) + 1
 
     def __generate_embeddings(self):
-        path_to_glove_file = f'{self.path_to_folder}glove/glove.6B.100d.txt'
+        path_to_glove_file = f'{self.path_to_build_folder}glove/glove.6B.100d.txt'
         self.embeddings_index = {}
         with open(path_to_glove_file) as f:
             for line in f:
@@ -137,6 +145,9 @@ class SarcasmModel:
         validation_data = (self.padded_test, self.y_test), 
         epochs = epochs, 
         batch_size = 32)
+
+    def __save_model(self, save_path):
+        self.model.save(save_path)
     
     def predict_arr(self, input, threshold = DEFAULT_PREDICTION_THRESHOLD):
         if not isinstance(input, list) or not isinstance(input[0], str):
