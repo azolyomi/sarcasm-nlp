@@ -150,9 +150,6 @@ class SarcasmModel:
         self.model.save(save_path)
     
     def predict_arr(self, input, threshold = DEFAULT_PREDICTION_THRESHOLD):
-        if not isinstance(input, list) or not isinstance(input[0], str):
-            return {"error": "input must be a list of strings"}
-
         standardized = self.standardize_map(input)
         prediction = self.model.predict(standardized)
 
