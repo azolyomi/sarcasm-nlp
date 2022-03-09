@@ -196,18 +196,15 @@ class SarcasmModel:
         self.model.save(save_path)
     
     def predict_arr(self, input, threshold = DEFAULT_PREDICTION_THRESHOLD):
-        if not isinstance(input, list) or not isinstance(input[0], str):
-            return {"error": "input must be a list of strings"}
-
         standardized = self.standardize_map(input)
         prediction = self.model.predict(standardized)
 
         res = []
         for i in range(len(prediction)):
             if (prediction[i][1] >= threshold):
-                res.append({"sarcastic": "true", "score": prediction[i][1]})
+                res.append({"sarcastic": "true", "score": prediction[i][1].item()})
             else:
-                res.append({"sarcastic": "false", "score": prediction[i][1]})
+                res.append({"sarcastic": "false", "score": prediction[i][1].item()})
         return res
 
     def predict_singular(self, input, threshold = DEFAULT_PREDICTION_THRESHOLD):
@@ -218,9 +215,9 @@ class SarcasmModel:
         prediction = self.model.predict(standardized)
 
         if (prediction[0][1] >= threshold):
-            return {"sarcastic": "true", "score": prediction[0][1]}
+            return {"sarcastic": "true", "score": prediction[0][1].item()}
         else:
-            return {"sarcastic": "false", "score": prediction[0][1]}
+            return {"sarcastic": "false", "score": prediction[0][1].item()}
     
     def predict(self, input, threshold = DEFAULT_PREDICTION_THRESHOLD):
         if isinstance(input, list):
