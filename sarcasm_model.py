@@ -9,6 +9,10 @@ import re # regex
 import shutil
 import string
 import nltk
+from keras import backend as K
+
+from onion import parseLatest, fetchFromDb
+from dotenv import load_dotenv
 
 import tensorflow as tf
 from tensorflow.keras.preprocessing.sequence import pad_sequences
@@ -26,10 +30,12 @@ from nltk.stem import SnowballStemmer
 from nltk.tokenize import RegexpTokenizer
 
 print('Tensorflow: ', tf.__version__)
+load_dotenv()
 
 class SarcasmModel:
 
     DEFAULT_PREDICTION_THRESHOLD = 0.6
+    MONGO_CONNECTION_URL = os.getenv('MONGO_CONNECTION_URL')
 
     def __init__(self, path_to_build_folder="./", path_to_saved_model=None, train=False, epochs=30, save=True):
         self.path_to_build_folder = path_to_build_folder
@@ -47,7 +53,7 @@ class SarcasmModel:
             if (train):
                 self.train_model(epochs)
                 if (save):
-                    self.__save_model(f'{path_to_build_folder}saved_model/fake_news_v1')
+                    self.__save_model(f'{path_to_build_folder}saved_model2/fake_news_v1')
 
     
     def __instantiate_data(self):
@@ -107,19 +113,6 @@ class SarcasmModel:
         print("Converted %d words (%d misses)" % (hits, misses))
 
     def __compile_model(self):
-        earlystop = EarlyStopping(monitor = "val_accuracy", 
-                        patience = 7, 
-                        verbose = 1,  
-                        restore_best_weights = True, 
-                        mode = 'max')
-
-        reduce_lr = ReduceLROnPlateau(monitor = "val_accuracy", 
-                        factor = .4642,
-                        patience = 3,
-                        verbose = 1, 
-                        min_delta = 0.001,
-                        mode = 'max')
-
         input = Input(shape = (self.max_length, ), name = "input")
 
         embedding = Embedding(input_dim = self.vocab_size + 2, 
@@ -141,10 +134,63 @@ class SarcasmModel:
         self.model.summary()
 
     def train_model(self, epochs=12):
-        self.model.fit(self.padded_train, self.y_train, 
-        validation_data = (self.padded_test, self.y_test), 
+        earlystop = EarlyStopping(monitor = "val_accuracy", 
+                        patience = 7, 
+                        verbose = 1,  
+                        restore_best_weights = True, 
+                        mode = 'max')
+
+        reduce_lr = ReduceLROnPlateau(monitor = "val_accuracy", 
+                        factor = .4642,
+                        patience = 3,
+                        verbose = 1, 
+                        min_delta = 0.001,
+                        mode = 'max')
+        self.model.fit(
+            self.padded_train, self.y_train, 
+            validation_data = (self.padded_test, self.y_test), 
+            epochs = epochs, 
+            batch_size = 32,
+            callbacks=[earlystop, reduce_lr]
+        )
+
+    def additional_train_model(self, save=False, different_path_to_build_folder=None, epochs=1):
+        # Load data as json
+        scrapedData = fetchFromDb(self.MONGO_CONNECTION_URL)
+        # Reformat data as list that matches primary dataset
+        scrapedDataList = []
+        for headlineDict in scrapedData:
+            scrapedDataList.append([headlineDict['headline'], headlineDict['sarcastic']])
+        # Load into pandas dataframes and clean
+        self.scraped_train_dataset = pd.DataFrame(scrapedDataList, columns=['headline', 'is_sarcastic'])
+        self.scraped_train_dataset["headline"].apply(self.remove_contractions)
+        self.scraped_y_train = self.scraped_train_dataset["is_sarcastic"]
+        self.scraped_train_dataset.info()
+        # Tokenize
+        # NOT adapting the actual tokenizer -- assuming our initial dataset has enough to build this.
+          # self.t.fit_on_text(new_dataset) -> leads to problems with token recognition (math stuff).
+        # Encode
+        encoded_train = self.t.texts_to_sequences(self.scraped_train_dataset["headline"])
+        # Pad sequences to max length
+        self.scraped_padded_train = pad_sequences(encoded_train, 
+            maxlen = self.max_length, 
+            padding = "post", 
+            truncating = "post")
+        # Re-train model, automatically using 10% of the input dataset as a validation set
+        self.model.fit(self.scraped_padded_train, self.scraped_y_train, validation_split=0.1, 
         epochs = epochs, 
         batch_size = 32)
+        # We SHOULD save, but we don't yet. Why?
+        # -- Only parsing the Onion, so data is heavily skewed. 
+        # -- If we keep recursively training the model on ONLY sarcastic data, it will recognize everything as sarcastic.
+        # -- Can save once we've built scrapers for NON-sarcastic sites that provide non-sarcastic data & rebalance.
+        if (save):
+            if (different_path_to_build_folder is not None):
+                self.__save_model(f'{different_path_to_build_folder}saved_model/fake_news_v1')
+                print('saved to custom folder')
+            else: 
+                self.__save_model(f'{self.path_to_build_folder}saved_model/fake_news_v1')
+                print('saved to default folder')
 
     def __save_model(self, save_path):
         self.model.save(save_path)
